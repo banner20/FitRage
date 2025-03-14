@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Fitness AR Game Synced to Audio with Settings</title>
+  <title>Fitness AR Game - Box Mode & Push-Up Mode</title>
   <style>
     body {
       margin: 0;
@@ -36,7 +36,7 @@
       z-index: 2;
     }
     /* Score display */
-    #score {
+    #scoreContainer {
       position: absolute;
       top: 20px;
       right: 20px;
@@ -60,7 +60,8 @@
       border-radius: 5px;
       font-size: 18px;
       cursor: pointer;
-      z-index: 20;
+      z-index: 5;
+      display: none;
     }
     /* Settings button */
     #settingsButton {
@@ -71,14 +72,61 @@
       padding: 5px 10px;
       font-size: 16px;
     }
-    /* Audio file Play/Pause button (outside settings) */
-    #audioPlayPauseButton {
+    /* Main Menu button */
+    #mainMenuButton {
       position: absolute;
       top: 60px;
       left: 20px;
       z-index: 10;
       padding: 5px 10px;
       font-size: 16px;
+    }
+    /* Audio Play/Pause button */
+    #audioPlayPauseButton {
+      position: absolute;
+      top: 320px;
+      left: 20px;
+      z-index: 10;
+      padding: 5px 10px;
+      font-size: 16px;
+      display: none;
+    }
+    /* Audio Source Selector in Main UI */
+    #audioSourceContainer {
+      position: absolute;
+      top: 140px;
+      left: 20px;
+      z-index: 10;
+      color: white;
+      font-size: 16px;
+      background-color: rgba(0,0,0,0.5);
+      padding: 5px 10px;
+      border-radius: 5px;
+    }
+    /* File Controls (visible only when Audio File is selected) */
+    #fileControls {
+      position: absolute;
+      top: 200px;
+      left: 20px;
+      z-index: 10;
+      color: white;
+      font-size: 16px;
+      background-color: rgba(0,0,0,0.5);
+      padding: 5px 10px;
+      border-radius: 5px;
+      display: none;
+    }
+    /* Metronome Controls (visible only when Metronome is selected) */
+    #metronomeControls {
+      position: absolute;
+      top: 200px;
+      left: 20px;
+      z-index: 10;
+      color: white;
+      font-size: 16px;
+      background-color: rgba(0,0,0,0.5);
+      padding: 5px 10px;
+      border-radius: 5px;
       display: none;
     }
     /* Game boxes */
@@ -99,7 +147,24 @@
       background-color: rgba(255,0,0,0.5) !important;
       border: 3px solid rgba(255,0,0,0.8) !important;
     }
-    /* Settings Modal styling */
+    /* Push-up bar */
+    #pushUpBar {
+      position: absolute;
+      width: 80%;
+      height: 50%;
+      bottom: 0;
+      left: 10%;
+      background-color: rgba(0,200,100,0.5);
+      border: 3px solid rgba(0,200,100,0.8);
+      border-radius: 10px;
+      z-index: 5;
+      display: none;
+    }
+    .push-up-flash {
+      background-color: rgba(255,255,0,0.8) !important;
+      border: 3px solid rgba(255,255,0,1) !important;
+    }
+    /* Settings Modal (for camera selection only) */
     #settingsModal {
       position: fixed;
       top: 50%;
@@ -126,14 +191,71 @@
       width: 100%;
       margin-top: 5px;
     }
-    #audioFileContainer {
-      margin-top: 10px;
-      display: none;
-    }
     #closeSettingsButton {
       margin-top: 15px;
       padding: 5px 10px;
       font-size: 16px;
+    }
+    /* Main Menu styling */
+    #mainMenu {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.7);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 25;
+    }
+    #mainMenu h1 {
+      color: white;
+      font-size: 36px;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+    .menu-button {
+      margin: 10px;
+      padding: 15px 30px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 20px;
+      cursor: pointer;
+      width: 200px;
+      transition: transform 0.2s, background-color 0.2s;
+    }
+    .menu-button:hover {
+      background-color: #3e8e41;
+      transform: scale(1.05);
+    }
+    #gameTitle {
+      text-shadow: 0 0 10px rgba(0,255,0,0.7);
+    }
+    #gameInstructions {
+      color: white;
+      text-align: center;
+      max-width: 600px;
+      margin-bottom: 30px;
+    }
+    /* Timeline for audio beats */
+    #audioTimeline {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 5px;
+      background-color: rgba(255, 255, 255, 0.3);
+      z-index: 15;
+    }
+    #audioBeatMarker {
+      position: absolute;
+      height: 100%;
+      background-color: rgba(255, 0, 0, 0.8);
+      transition: left 0.1s;
     }
   </style>
 </head>
@@ -141,28 +263,65 @@
   <div id="container">
     <video id="videoElement" playsinline autoplay></video>
     <canvas id="skeletonCanvas"></canvas>
-    <div id="score">Score: 0</div>
+    <div id="scoreContainer">Score: 0</div>
     <button id="startButton">Start Game</button>
     <button id="settingsButton">Settings</button>
+    <button id="mainMenuButton">Main Menu</button>
+    
+    <!-- Audio Play/Pause Button -->
     <button id="audioPlayPauseButton">Play Audio</button>
+    
+    <!-- Audio Source Selector (always visible) -->
+    <div id="audioSourceContainer">
+      <label for="audioSourceSelect">Audio Source:</label>
+      <select id="audioSourceSelect">
+        <option value="mic">Microphone</option>
+        <option value="file">Audio File</option>
+        <option value="metronome">Metronome</option>
+        <option value="computer">Computer Audio</option>
+      </select>
+    </div>
+    
+    <!-- File Controls (only for Audio File) -->
+    <div id="fileControls">
+      <label for="audioFileInput">Upload Audio File:</label>
+      <input type="file" id="audioFileInput" accept="audio/*">
+      <label for="audioThreshold">Audio Threshold:</label>
+      <input type="number" id="audioThreshold" value="15" min="0" step="1">
+      <label for="playbackSpeed">Playback Speed:</label>
+      <input type="number" id="playbackSpeed" value="1" min="0.5" step="0.1" max="2">
+    </div>
+    
+    <!-- Metronome Controls (only for Metronome) -->
+    <div id="metronomeControls">
+      <label for="metronomeBPM">Metronome BPM:</label>
+      <input type="number" id="metronomeBPM" value="60" min="30" max="240" step="1">
+      <label for="metronomeVolume">Volume:</label>
+      <input type="range" id="metronomeVolume" min="0" max="1" step="0.01" value="0.5">
+    </div>
+    
+    <div id="pushUpBar"></div>
+    <div id="audioTimeline">
+      <div id="audioBeatMarker"></div>
+    </div>
   </div>
   
-  <!-- Settings Modal -->
+  <!-- Main Menu -->
+  <div id="mainMenu">
+    <h1 id="gameTitle">Fitness AR Game</h1>
+    <div id="gameInstructions">
+      Select a game mode to begin. Use your body to interact with the on-screen elements.
+      <br>Audio beats will trigger game events. Change your audio source from the panel.
+    </div>
+    <button id="boxModeButton" class="menu-button">Box Mode</button>
+    <button id="pushUpModeButton" class="menu-button">Push-Up Mode</button>
+  </div>
+  
+  <!-- Settings Modal (for camera selection only) -->
   <div id="settingsModal">
     <h2>Settings</h2>
     <label for="cameraSelect">Camera:</label>
     <select id="cameraSelect"></select>
-    
-    <label for="audioSourceSelect">Audio Source:</label>
-    <select id="audioSourceSelect">
-      <option value="mic" selected>Microphone</option>
-      <option value="file">Audio File</option>
-      <option value="computer">Computer Audio</option>
-    </select>
-    <div id="audioFileContainer">
-      <label for="audioFileInput">Upload Audio File:</label>
-      <input type="file" id="audioFileInput" accept="audio/*">
-    </div>
     <button id="closeSettingsButton">Close</button>
   </div>
   
@@ -181,22 +340,34 @@
     const videoElement = document.getElementById('videoElement');
     const canvasElement = document.getElementById('skeletonCanvas');
     const canvasCtx = canvasElement.getContext('2d');
-    const scoreElement = document.getElementById('score');
+    const scoreContainer = document.getElementById('scoreContainer');
     const startButton = document.getElementById('startButton');
     const settingsButton = document.getElementById('settingsButton');
+    const mainMenuButton = document.getElementById('mainMenuButton');
     const settingsModal = document.getElementById('settingsModal');
     const closeSettingsButton = document.getElementById('closeSettingsButton');
     const cameraSelect = document.getElementById('cameraSelect');
     const audioSourceSelect = document.getElementById('audioSourceSelect');
-    const audioFileContainer = document.getElementById('audioFileContainer');
     const audioFileInput = document.getElementById('audioFileInput');
+    const fileControls = document.getElementById('fileControls');
+    const metronomeControls = document.getElementById('metronomeControls');
     const audioPlayPauseButton = document.getElementById('audioPlayPauseButton');
     const audioElement = document.getElementById('audioElement');
+    const mainMenu = document.getElementById('mainMenu');
+    const boxModeButton = document.getElementById('boxModeButton');
+    const pushUpModeButton = document.getElementById('pushUpModeButton');
+    const pushUpBar = document.getElementById('pushUpBar');
+    const audioBeatMarker = document.getElementById('audioBeatMarker');
+    const audioThresholdInput = document.getElementById('audioThreshold');
+    const playbackSpeedInput = document.getElementById('playbackSpeed');
+    const metronomeBPMInput = document.getElementById('metronomeBPM');
+    const metronomeVolumeInput = document.getElementById('metronomeVolume');
     
-    // Global audio mode: "mic", "file", or "computer"
+    // Global audio mode: "mic", "file", "metronome", or "computer"
     let audioMode = "mic";
-    let micStream = null; // For microphone stream management
-    let audioFilePlaying = false; // For file mode play state
+    let micStream = null;
+    let currentGameMode = null; // "box" or "pushup"
+    let metronomeInterval = null;
     
     // --- Canvas Resize ---
     function resizeCanvas() {
@@ -210,7 +381,10 @@
     let gameState = {
       score: 0,
       boxes: [],
-      isPlaying: false
+      isPlaying: false,
+      pushUpCount: 0,
+      lastPushUpTime: 0,
+      pushUpCooldown: 1500
     };
     
     // --- Initialize MediaPipe Pose ---
@@ -242,34 +416,54 @@
       [29, 31], [30, 32]
     ];
     
-    // --- Pose Callback: Draw skeleton and check collisions ---
+    // --- Pose Callback ---
     pose.onResults((results) => {
       drawSkeleton(results.poseLandmarks);
-      console.log("Pose results:", results);
       if (!gameState.isPlaying || !results.poseLandmarks) return;
       const landmarks = results.poseLandmarks;
       const width = container.clientWidth;
       const height = container.clientHeight;
-      
-      // For every game box, check every landmark.
-      gameState.boxes.forEach((box) => {
-        if (box.hit) return;
-        let collision = false;
-        landmarks.forEach(lm => {
-          const x = (1 - lm.x) * width;
-          const y = lm.y * height;
-          const dist = Math.hypot(x - box.x, y - box.y);
-          if (dist < box.size / 2) collision = true;
+      if (currentGameMode === "box") {
+        gameState.boxes.forEach((box) => {
+          if (box.hit) return;
+          let collision = false;
+          landmarks.forEach(lm => {
+            const x = (1 - lm.x) * width;
+            const y = lm.y * height;
+            if (Math.hypot(x - box.x, y - box.y) < box.size / 2) collision = true;
+          });
+          if (collision) {
+            box.hit = true;
+            box.element.classList.add('hit');
+            setTimeout(() => { box.element.remove(); }, 1000);
+            gameState.score++;
+            scoreContainer.textContent = "Score: " + gameState.score;
+          }
         });
-        if (collision) {
-          box.hit = true;
-          box.element.classList.add('hit');
-          // Remove the box after 1 second.
-          setTimeout(() => { box.element.remove(); }, 1000);
-          gameState.score++;
-          scoreElement.textContent = "Score: " + gameState.score;
+      } else if (currentGameMode === "pushup") {
+        if (pushUpBar.classList.contains('push-up-flash')) {
+          const now = Date.now();
+          if (now - gameState.lastPushUpTime > gameState.pushUpCooldown) {
+            const leftShoulder = landmarks[11];
+            const rightShoulder = landmarks[12];
+            if (leftShoulder && rightShoulder) {
+              const leftX = (1 - leftShoulder.x) * width;
+              const leftY = leftShoulder.y * height;
+              const rightX = (1 - rightShoulder.x) * width;
+              const rightY = rightShoulder.y * height;
+              const barRect = pushUpBar.getBoundingClientRect();
+              if ((leftY >= barRect.top && leftY <= barRect.bottom &&
+                   leftX >= barRect.left && leftX <= barRect.right) ||
+                  (rightY >= barRect.top && rightY <= barRect.bottom &&
+                   rightX >= barRect.left && rightX <= barRect.right)) {
+                gameState.pushUpCount++;
+                gameState.lastPushUpTime = now;
+                scoreContainer.textContent = "Push-Ups: " + gameState.pushUpCount;
+              }
+            }
+          }
         }
-      });
+      }
     });
     
     // --- Manual Skeleton Drawing ---
@@ -277,35 +471,24 @@
       canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
       if (!landmarks) return;
       const width = canvasElement.width;
-      const scaledLandmarks = landmarks.map(lm => ({
+      const scaled = landmarks.map(lm => ({
         x: (1 - lm.x) * width,
         y: lm.y * canvasElement.height
       }));
-      
-      let connections = null;
-      if (typeof Pose !== 'undefined' && Pose.POSE_CONNECTIONS) {
-        connections = Pose.POSE_CONNECTIONS;
-      } else if (typeof mpPose !== 'undefined' && mpPose.POSE_CONNECTIONS) {
-        connections = mpPose.POSE_CONNECTIONS;
-      } else {
-        connections = FALLBACK_CONNECTIONS;
-      }
-      
+      const connections = (typeof Pose !== 'undefined' && Pose.POSE_CONNECTIONS) ?
+                          Pose.POSE_CONNECTIONS : FALLBACK_CONNECTIONS;
       connections.forEach(conn => {
-        const [start, end] = conn;
-        if (scaledLandmarks[start] && scaledLandmarks[end]) {
-          const p1 = scaledLandmarks[start];
-          const p2 = scaledLandmarks[end];
+        const [a, b] = conn;
+        if (scaled[a] && scaled[b]) {
           canvasCtx.beginPath();
-          canvasCtx.moveTo(p1.x, p1.y);
-          canvasCtx.lineTo(p2.x, p2.y);
+          canvasCtx.moveTo(scaled[a].x, scaled[a].y);
+          canvasCtx.lineTo(scaled[b].x, scaled[b].y);
           canvasCtx.strokeStyle = '#00FF00';
           canvasCtx.lineWidth = 2;
           canvasCtx.stroke();
         }
       });
-      
-      scaledLandmarks.forEach(p => {
+      scaled.forEach(p => {
         canvasCtx.beginPath();
         canvasCtx.arc(p.x, p.y, 4, 0, 2 * Math.PI);
         canvasCtx.fillStyle = 'red';
@@ -316,13 +499,9 @@
     // --- Camera Setup ---
     let cameraInstance;
     function startCameraWithDevice(deviceId) {
-      if (cameraInstance) {
-        cameraInstance.stop();
-      }
+      if (cameraInstance) cameraInstance.stop();
       cameraInstance = new Camera(videoElement, {
-        onFrame: async () => {
-          await pose.send({ image: videoElement });
-        },
+        onFrame: async () => { await pose.send({ image: videoElement }); },
         width: 640,
         height: 480,
         video: deviceId ? { deviceId: { exact: deviceId } } : undefined
@@ -333,43 +512,37 @@
     async function populateCameraOptions() {
       try {
         const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        const cams = devices.filter(d => d.kind === 'videoinput');
         cameraSelect.innerHTML = '';
-        videoDevices.forEach(device => {
+        cams.forEach(device => {
           const option = document.createElement('option');
           option.value = device.deviceId;
           option.text = device.label || `Camera ${cameraSelect.length + 1}`;
           cameraSelect.appendChild(option);
         });
-        console.log("Video devices:", videoDevices);
-      } catch (error) {
-        console.error("Error enumerating devices:", error);
+      } catch (err) {
+        console.error("Error enumerating devices:", err);
       }
     }
     
-    cameraSelect.addEventListener('change', (event) => {
-      const deviceId = event.target.value;
-      startCameraWithDevice(deviceId);
+    cameraSelect.addEventListener('change', (e) => {
+      startCameraWithDevice(e.target.value);
     });
     
     // --- Create Random Game Box ---
     function createRandomBox() {
       const size = 60;
-      const maxX = container.clientWidth - size;
-      const maxY = container.clientHeight - size;
-      const x = Math.random() * maxX + size / 2;
-      const y = Math.random() * maxY + size / 2;
-      
-      const boxElement = document.createElement('div');
-      boxElement.className = 'game-box';
-      boxElement.style.width = size + 'px';
-      boxElement.style.height = size + 'px';
-      boxElement.style.left = (x - size / 2) + 'px';
-      boxElement.style.top = (y - size / 2) + 'px';
-      boxElement.textContent = "+1";
-      container.appendChild(boxElement);
-      
-      return { element: boxElement, x, y, size, hit: false };
+      const x = Math.random() * (container.clientWidth - size) + size/2;
+      const y = Math.random() * (container.clientHeight - size) + size/2;
+      const boxEl = document.createElement('div');
+      boxEl.className = 'game-box';
+      boxEl.style.width = size + 'px';
+      boxEl.style.height = size + 'px';
+      boxEl.style.left = (x - size/2) + 'px';
+      boxEl.style.top = (y - size/2) + 'px';
+      boxEl.textContent = "+1";
+      container.appendChild(boxEl);
+      return { element: boxEl, x, y, size, hit: false };
     }
     
     // --- Audio Analysis Variables & Functions ---
@@ -392,8 +565,7 @@
           audioSource = audioContext.createMediaStreamSource(stream);
           analyser = audioContext.createAnalyser();
           analyser.fftSize = 256;
-          const bufferLength = analyser.frequencyBinCount;
-          dataArray = new Uint8Array(bufferLength);
+          dataArray = new Uint8Array(analyser.frequencyBinCount);
           audioSource.connect(analyser);
           analyzeAudio();
         })
@@ -402,16 +574,14 @@
     
     function startAudioFileAnalysis(file) {
       stopMicrophone();
-      const fileURL = URL.createObjectURL(file);
-      audioElement.src = fileURL;
+      const url = URL.createObjectURL(file);
+      audioElement.src = url;
       audioElement.load();
-      // Do not auto-play; user controls via play/pause button.
       audioContext = new AudioContext();
       audioSource = audioContext.createMediaElementSource(audioElement);
       analyser = audioContext.createAnalyser();
       analyser.fftSize = 256;
-      const bufferLength = analyser.frequencyBinCount;
-      dataArray = new Uint8Array(bufferLength);
+      dataArray = new Uint8Array(analyser.frequencyBinCount);
       audioSource.connect(analyser);
       analyser.connect(audioContext.destination);
       analyzeAudio();
@@ -425,51 +595,111 @@
           audioSource = audioContext.createMediaStreamSource(stream);
           analyser = audioContext.createAnalyser();
           analyser.fftSize = 256;
-          const bufferLength = analyser.frequencyBinCount;
-          dataArray = new Uint8Array(bufferLength);
+          dataArray = new Uint8Array(analyser.frequencyBinCount);
           audioSource.connect(analyser);
           analyzeAudio();
         })
         .catch(err => console.error('Error accessing computer audio:', err));
     }
     
+    // --- Define startAudioAnalysis() for file mode ---
+    function startAudioAnalysis() {
+      if (audioMode === 'file') {
+        if (audioFileInput.files.length > 0) {
+          startAudioFileAnalysis(audioFileInput.files[0]);
+        } else {
+          console.warn("No audio file selected.");
+        }
+      }
+    }
+    
+    // --- Metronome & Beat Trigger ---
+    function triggerBeat() {
+      if (!gameState.isPlaying) return;
+      if (currentGameMode === "box") {
+        const box = createRandomBox();
+        gameState.boxes.push(box);
+      } else if (currentGameMode === "pushup") {
+        pushUpBar.classList.add('push-up-flash');
+        setTimeout(() => { pushUpBar.classList.remove('push-up-flash'); }, 300);
+      }
+    }
+    
+    function startMetronomeAnalysis() {
+      if (metronomeInterval) clearInterval(metronomeInterval);
+      if (!audioContext) audioContext = new AudioContext();
+      const bpm = parseFloat(metronomeBPMInput.value) || 60;
+      const intervalMs = 60000 / bpm;
+      const beepDuration = 0.2;
+      metronomeInterval = setInterval(() => {
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        const volume = parseFloat(metronomeVolumeInput.value) || 0.5;
+        gain.gain.setValueAtTime(volume, audioContext.currentTime);
+        gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + beepDuration);
+        osc.frequency.value = 1000;
+        osc.connect(gain);
+        // Connect directly to destination for audibility
+        gain.connect(audioContext.destination);
+        osc.start();
+        osc.stop(audioContext.currentTime + beepDuration);
+        triggerBeat();
+      }, intervalMs);
+      analyzeAudio();
+    }
+    
+    // --- Analyze Audio (common for all sources) ---
     function analyzeAudio() {
       requestAnimationFrame(analyzeAudio);
       if (!analyser) return;
       analyser.getByteTimeDomainData(dataArray);
       let sum = 0;
       for (let i = 0; i < dataArray.length; i++) {
-        let sample = dataArray[i] - 128;
-        sum += Math.abs(sample);
+        sum += Math.abs(dataArray[i] - 128);
       }
       let avg = sum / dataArray.length;
-      // For file mode, only spawn boxes if the audio file is playing.
       if (audioMode === 'file' && audioElement.paused) return;
-      if (avg > 15 && !audioCooldown) {
-        const box = createRandomBox();
-        gameState.boxes.push(box);
+      if (avg > parseInt(audioThresholdInput.value) && !audioCooldown && gameState.isPlaying && audioMode !== 'metronome') {
+        triggerBeat();
         audioCooldown = true;
         setTimeout(() => { audioCooldown = false; }, 500);
       }
+      if (audioMode === 'file' && !audioElement.paused) {
+        const percent = (audioElement.currentTime / audioElement.duration) * 100;
+        audioBeatMarker.style.left = percent + '%';
+      }
     }
     
-    function startAudioAnalysis() {
-      if (audioMode === 'mic') {
-        startMicrophoneAnalysis();
-        audioPlayPauseButton.style.display = 'none';
-      } else if (audioMode === 'file') {
-        if (audioFileInput.files.length > 0) {
-          startAudioFileAnalysis(audioFileInput.files[0]);
-          audioPlayPauseButton.style.display = 'block';
-        } else {
-          console.warn("No audio file selected.");
-          audioPlayPauseButton.style.display = 'none';
-        }
-      } else if (audioMode === 'computer') {
-        startComputerAudioAnalysis();
+    // --- Update Controls Visibility ---
+    function updateAudioControlsVisibility() {
+      const mode = audioSourceSelect.value;
+      audioMode = mode;
+      if (mode === 'file') {
+        fileControls.style.display = 'block';
+        metronomeControls.style.display = 'none';
+        audioPlayPauseButton.textContent = 'Play Audio';
+        audioPlayPauseButton.style.display = (audioFileInput.files.length > 0) ? 'block' : 'none';
+      } else if (mode === 'metronome') {
+        fileControls.style.display = 'none';
+        metronomeControls.style.display = 'block';
+        audioPlayPauseButton.textContent = 'Start Metronome';
+        audioPlayPauseButton.style.display = 'block';
+      } else {
+        fileControls.style.display = 'none';
+        metronomeControls.style.display = 'none';
         audioPlayPauseButton.style.display = 'none';
       }
     }
+    
+    audioFileInput.addEventListener('change', updateAudioControlsVisibility);
+    audioSourceSelect.addEventListener('change', updateAudioControlsVisibility);
+    
+    metronomeBPMInput.addEventListener('change', () => {
+      if (audioMode === 'metronome' && metronomeInterval) {
+        clearInterval(metronomeInterval);
+        startMetronomeAnalysis();
+      }
+    });
     
     // --- Settings Modal Functionality ---
     settingsButton.addEventListener('click', () => {
@@ -477,58 +707,112 @@
     });
     closeSettingsButton.addEventListener('click', () => {
       settingsModal.style.display = 'none';
-      audioMode = audioSourceSelect.value;
     });
-    audioSourceSelect.addEventListener('change', (event) => {
-      if (event.target.value === 'file') {
-        audioFileContainer.style.display = 'block';
-      } else {
-        audioFileContainer.style.display = 'none';
+    
+    // --- Audio Play/Pause Button Event Listener ---
+    audioPlayPauseButton.addEventListener('click', async () => {
+      if (audioMode === 'file') {
+        if (audioElement.paused) {
+          if (audioContext && audioContext.state === 'suspended') await audioContext.resume();
+          try {
+            await audioElement.play();
+            audioPlayPauseButton.textContent = 'Pause Audio';
+          } catch (err) {
+            if (err.name !== 'AbortError') console.error('Error playing audio file:', err);
+          }
+        } else {
+          audioElement.pause();
+          audioPlayPauseButton.textContent = 'Play Audio';
+        }
+      } else if (audioMode === 'metronome') {
+        if (metronomeInterval) {
+          clearInterval(metronomeInterval);
+          metronomeInterval = null;
+          audioPlayPauseButton.textContent = 'Start Metronome';
+        } else {
+          if (audioContext && audioContext.state === 'suspended') await audioContext.resume();
+          startMetronomeAnalysis();
+          audioPlayPauseButton.textContent = 'Stop Metronome';
+        }
       }
     });
     
-    // Play/Pause button for audio file (outside modal)
-    audioPlayPauseButton.addEventListener('click', () => {
-      if (audioElement.paused) {
-        audioElement.play().then(() => {
-          audioPlayPauseButton.textContent = 'Pause Audio';
-        }).catch(err => console.error('Error playing audio file:', err));
-      } else {
-        audioElement.pause();
-        audioPlayPauseButton.textContent = 'Play Audio';
-      }
+    // --- Event Listener for Playback Speed Input (File Mode) ---
+    playbackSpeedInput.addEventListener('change', () => {
+      audioElement.playbackRate = parseFloat(playbackSpeedInput.value);
     });
     
     // --- Start Game ---
-    function startGame() {
+    function startBoxMode() {
+      currentGameMode = "box";
       gameState.score = 0;
-      scoreElement.textContent = "Score: 0";
-      gameState.boxes.forEach(box => box.element.remove());
+      scoreContainer.textContent = "Score: 0";
+      gameState.boxes.forEach(b => b.element.remove());
       gameState.boxes = [];
+      pushUpBar.style.display = 'none';
       for (let i = 0; i < 5; i++) {
         const box = createRandomBox();
         gameState.boxes.push(box);
       }
       gameState.isPlaying = true;
-      startAudioAnalysis();
+      mainMenu.style.display = 'none';
+      if (audioMode === 'mic') startMicrophoneAnalysis();
+      else if (audioMode === 'file') {
+        startAudioAnalysis();
+      } else if (audioMode === 'metronome') {
+        analyzeAudio();
+      } else if (audioMode === 'computer') startComputerAudioAnalysis();
     }
     
-    startButton.addEventListener('click', () => {
-      startGame();
-      startButton.style.display = 'none';
+    function startPushUpMode() {
+      currentGameMode = "pushup";
+      gameState.pushUpCount = 0;
+      scoreContainer.textContent = "Push-Ups: 0";
+      gameState.boxes.forEach(b => b.element.remove());
+      gameState.boxes = [];
+      gameState.lastPushUpTime = 0;
+      pushUpBar.style.display = 'block';
+      gameState.isPlaying = true;
+      mainMenu.style.display = 'none';
+      if (audioMode === 'mic') startMicrophoneAnalysis();
+      else if (audioMode === 'file') {
+        startAudioAnalysis();
+      } else if (audioMode === 'metronome') {
+        analyzeAudio();
+      } else if (audioMode === 'computer') startComputerAudioAnalysis();
+    }
+    
+    // --- Main Menu Functionality ---
+    boxModeButton.addEventListener('click', startBoxMode);
+    pushUpModeButton.addEventListener('click', startPushUpMode);
+    mainMenuButton.addEventListener('click', () => {
+      gameState.isPlaying = false;
+      mainMenu.style.display = 'flex';
+      gameState.boxes.forEach(b => b.element.remove());
+      gameState.boxes = [];
+      pushUpBar.style.display = 'none';
+      if (metronomeInterval) {
+        clearInterval(metronomeInterval);
+        metronomeInterval = null;
+      }
     });
     
     // --- Initialize Camera Options & Start Camera ---
     window.addEventListener('DOMContentLoaded', async () => {
       await populateCameraOptions();
-      const firstDeviceId = cameraSelect.value;
-      startCameraWithDevice(firstDeviceId);
+      startCameraWithDevice(cameraSelect.value);
+      mainMenu.style.display = 'flex';
+      mainMenuButton.style.display = 'none';
+      settingsButton.addEventListener('click', () => {
+        settingsModal.style.display = 'block';
+      });
+      [boxModeButton, pushUpModeButton].forEach(button => {
+        button.addEventListener('click', () => {
+          mainMenuButton.style.display = 'block';
+        });
+      });
+      updateAudioControlsVisibility();
     });
-    
-    /* Note on Phone Audio:
-       Some phone cameras or devices accessed via phone link may not appear as standard videoinput devices.
-       Also, capturing "computer audio" depends on browser support for getDisplayMedia with audio.
-    */
   </script>
 </body>
 </html>

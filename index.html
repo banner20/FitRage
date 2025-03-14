@@ -143,6 +143,11 @@
       font-size: 18px;
       z-index: 5;
     }
+    /* Purple boxes style */
+    .purple-box {
+      background-color: rgba(128, 0, 128, 0.5);
+      border: 3px solid rgba(128, 0, 128, 0.8);
+    }
     .hit {
       background-color: rgba(255,0,0,0.5) !important;
       border: 3px solid rgba(255,0,0,0.8) !important;
@@ -416,7 +421,7 @@
       [29, 31], [30, 32]
     ];
     
-    // --- Pose Callback ---
+    // --- Pose Callback: Draw skeleton and check collisions ---
     pose.onResults((results) => {
       drawSkeleton(results.poseLandmarks);
       if (!gameState.isPlaying || !results.poseLandmarks) return;
@@ -436,7 +441,7 @@
             box.hit = true;
             box.element.classList.add('hit');
             setTimeout(() => { box.element.remove(); }, 1000);
-            gameState.score++;
+            gameState.score += box.points;
             scoreContainer.textContent = "Score: " + gameState.score;
           }
         });
@@ -534,15 +539,23 @@
       const size = 60;
       const x = Math.random() * (container.clientWidth - size) + size/2;
       const y = Math.random() * (container.clientHeight - size) + size/2;
+      
       const boxEl = document.createElement('div');
       boxEl.className = 'game-box';
+      
+      // Decide randomly whether this box is purple (3 points) or blue (1 point)
+      let isPurple = Math.random() < 0.2; // 20% chance for purple
+      let points = isPurple ? 3 : 1;
       boxEl.style.width = size + 'px';
       boxEl.style.height = size + 'px';
       boxEl.style.left = (x - size/2) + 'px';
       boxEl.style.top = (y - size/2) + 'px';
-      boxEl.textContent = "+1";
+      boxEl.textContent = isPurple ? "+3" : "+1";
+      if (isPurple) {
+        boxEl.classList.add('purple-box');
+      }
       container.appendChild(boxEl);
-      return { element: boxEl, x, y, size, hit: false };
+      return { element: boxEl, x, y, size, hit: false, points: points };
     }
     
     // --- Audio Analysis Variables & Functions ---
@@ -639,7 +652,6 @@
         gain.gain.linearRampToValueAtTime(0, audioContext.currentTime + beepDuration);
         osc.frequency.value = 1000;
         osc.connect(gain);
-        // Connect directly to destination for audibility
         gain.connect(audioContext.destination);
         osc.start();
         osc.stop(audioContext.currentTime + beepDuration);

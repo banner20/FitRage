@@ -143,10 +143,15 @@
       font-size: 18px;
       z-index: 5;
     }
-    /* Purple boxes style */
+    /* Purple box style */
     .purple-box {
       background-color: rgba(128, 0, 128, 0.5);
       border: 3px solid rgba(128, 0, 128, 0.8);
+    }
+    /* Orange box style */
+    .orange-box {
+      background-color: rgba(255,165,0,0.5);
+      border: 3px solid rgba(255,165,0,0.8);
     }
     .hit {
       background-color: rgba(255,0,0,0.5) !important;
@@ -435,7 +440,8 @@
           landmarks.forEach(lm => {
             const x = (1 - lm.x) * width;
             const y = lm.y * height;
-            if (Math.hypot(x - box.x, y - box.y) < box.size / 2) collision = true;
+            // Increase collision detection radius (70% of box size)
+            if (Math.hypot(x - box.x, y - box.y) < box.size * 0.7) collision = true;
           });
           if (collision) {
             box.hit = true;
@@ -539,21 +545,28 @@
       const size = 60;
       const x = Math.random() * (container.clientWidth - size) + size/2;
       const y = Math.random() * (container.clientHeight - size) + size/2;
-      
       const boxEl = document.createElement('div');
       boxEl.className = 'game-box';
-      
-      // Decide randomly whether this box is purple (3 points) or blue (1 point)
-      let isPurple = Math.random() < 0.2; // 20% chance for purple
-      let points = isPurple ? 3 : 1;
+      let r = Math.random();
+      let points, label;
+      // 15% chance for orange (+5), 20% for purple (+3), else blue (+1)
+      if (r < 0.15) {
+        points = 5;
+        label = "+5";
+        boxEl.classList.add('orange-box');
+      } else if (r < 0.35) {
+        points = 3;
+        label = "+3";
+        boxEl.classList.add('purple-box');
+      } else {
+        points = 1;
+        label = "+1";
+      }
       boxEl.style.width = size + 'px';
       boxEl.style.height = size + 'px';
       boxEl.style.left = (x - size/2) + 'px';
       boxEl.style.top = (y - size/2) + 'px';
-      boxEl.textContent = isPurple ? "+3" : "+1";
-      if (isPurple) {
-        boxEl.classList.add('purple-box');
-      }
+      boxEl.textContent = label;
       container.appendChild(boxEl);
       return { element: boxEl, x, y, size, hit: false, points: points };
     }

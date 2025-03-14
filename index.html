@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Fitness AR Game Synced to Audio with Settings</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #1a1a1a;
+      font-family: Arial, sans-serif;
+    }
+    /* Main container for video and game elements */
+    #container {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+    }
+    /* Mirrored video */
+    #videoElement {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+    /* Canvas overlay for drawing the skeleton */
+    #skeletonCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 2;
+    }
+    /* Score display */
+    #score {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      color: white;
+      font-size: 24px;
+      background-color: rgba(0,0,0,0.5);
+      padding: 10px;
+      border-radius: 5px;
+      z-index: 10;
+    }
+    /* Start button */
+    #startButton {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      padding: 15px 30px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 18px;
+      cursor: pointer;
+      z-index: 20;
+    }
+    /* Settings button */
+    #settingsButton {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      z-index: 10;
+      padding: 5px 10px;
+      font-size: 16px;
+    }
+    /* Audio file Play/Pause button (outside settings) */
+    #audioPlayPauseButton {
+      position: absolute;
+      top: 60px;
+      left: 20px;
+      z-index: 10;
+      padding: 5px 10px;
+      font-size: 16px;
+      display: none;
+    }
+    /* Game boxes */
+    .game-box {
+      position: absolute;
+      border-radius: 10px;
+      background-color: rgba(0,100,255,0.5);
+      border: 3px solid rgba(0,100,255,0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+      font-size: 18px;
+      z-index: 5;
+    }
+    .hit {
+      background-color: rgba(255,0,0,0.5) !important;
+      border: 3px solid rgba(255,0,0,0.8) !important;
+    }
+    /* Settings Modal styling */
+    #settingsModal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #fff;
+      color: #000;
+      padding: 20px;
+      border-radius: 10px;
+      z-index: 30;
+      display: none;
+      box-shadow: 0 0 10px rgba(0,0,0,0.5);
+      width: 300px;
+    }
+    #settingsModal h2 {
+      margin-top: 0;
+    }
+    #settingsModal label {
+      display: block;
+      margin-top: 10px;
+    }
+    #settingsModal select,
+    #settingsModal input {
+      width: 100%;
+      margin-top: 5px;
+    }
+    #audioFileContainer {
+      margin-top: 10px;
+      display: none;
+    }
+    #closeSettingsButton {
+      margin-top: 15px;
+      padding: 5px 10px;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <video id="videoElement" playsinline autoplay></video>
+    <canvas id="skeletonCanvas"></canvas>
+    <div id="score">Score: 0</div>
+    <button id="startButton">Start Game</button>
+    <button id="settingsButton">Settings</button>
+    <button id="audioPlayPauseButton">Play Audio</button>
+  </div>
+  
+  <!-- Settings Modal -->
+  <div id="settingsModal">
+    <h2>Settings</h2>
+    <label for="cameraSelect">Camera:</label>
+    <select id="cameraSelect"></select>
+    
+    <label for="audioSourceSelect">Audio Source:</label>
+    <select id="audioSourceSelect">
+      <option value="mic" selected>Microphone</option>
+      <option value="file">Audio File</option>
+      <option value="computer">Computer Audio</option>
+    </select>
+    <div id="audioFileContainer">
+      <label for="audioFileInput">Upload Audio File:</label>
+      <input type="file" id="audioFileInput" accept="audio/*">
+    </div>
+    <button id="closeSettingsButton">Close</button>
+  </div>
+  
+  <!-- Hidden audio element for file playback -->
+  <audio id="audioElement" style="display:none;"></audio>
+  
+  <!-- Load libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.20.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/pose.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1675466124/drawing_utils.js"></script>
+  
+  <script>
+    // --- DOM Elements ---
+    const container = document.getElementById('container');
+    const videoElement = document.getElementById('videoElement');
+    const canvasElement = document.getElementById('skeletonCanvas');
+    const canvasCtx = canvasElement.getContext('2d');
+    const scoreElement = document.getElementById('score');
+    const startButton = document.getElementById('startButton');
+    const settingsButton = document.getElementById('settingsButton');
+    const settingsModal = document.getElementById('settingsModal');
+    const closeSettingsButton = document.getElementById('closeSettingsButton');
+    const cameraSelect = document.getElementById('cameraSelect');
+    const audioSourceSelect = document.getElementById('audioSourceSelect');
+    const audioFileContainer = document.getElementById('audioFileContainer');
+    const audioFileInput = document.getElementById('audioFileInput');
+    const audioPlayPauseButton = document.getElementById('audioPlayPauseButton');
+    const audioElement = document.getElementById('audioElement');
+    
+    // Global audio mode: "mic", "file", or "computer"
+    let audioMode = "mic";
+    let micStream = null; // For microphone stream management
+    let audioFilePlaying = false; // For file mode play state
+    
+    // --- Canvas Resize ---
+    function resizeCanvas() {
+      canvasElement.width = container.clientWidth;
+      canvasElement.height = container.clientHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+    
+    // --- Game State ---
+    let gameState = {
+      score: 0,
+      boxes: [],
+      isPlaying: false
+    };
+    
+    // --- Initialize MediaPipe Pose ---
+    const pose = new Pose({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose@0.5.1675469404/${file}`
+    });
+    pose.setOptions({
+      modelComplexity: 1,
+      smoothLandmarks: true,
+      minDetectionConfidence: 0.3,
+      minTrackingConfidence: 0.3
+    });
+    
+    const FALLBACK_CONNECTIONS = [
+      [0, 1], [1, 2], [2, 3], [3, 7],
+      [0, 4], [4, 5], [5, 6], [6, 8],
+      [9, 10],
+      [11, 12], [11, 13], [13, 15], [15, 17],
+      [15, 19], [15, 21],
+      [17, 19],
+      [12, 14], [14, 16], [16, 18],
+      [16, 20], [16, 22],
+      [18, 20],
+      [11, 23], [12, 24],
+      [23, 24],
+      [23, 25], [24, 26],
+      [25, 27], [26, 28],
+      [27, 29], [28, 30],
+      [29, 31], [30, 32]
+    ];
+    
+    // --- Pose Callback: Draw skeleton and check collisions ---
+    pose.onResults((results) => {
+      drawSkeleton(results.poseLandmarks);
+      console.log("Pose results:", results);
+      if (!gameState.isPlaying || !results.poseLandmarks) return;
+      const landmarks = results.poseLandmarks;
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      
+      // For every game box, check every landmark.
+      gameState.boxes.forEach((box) => {
+        if (box.hit) return;
+        let collision = false;
+        landmarks.forEach(lm => {
+          const x = (1 - lm.x) * width;
+          const y = lm.y * height;
+          const dist = Math.hypot(x - box.x, y - box.y);
+          if (dist < box.size / 2) collision = true;
+        });
+        if (collision) {
+          box.hit = true;
+          box.element.classList.add('hit');
+          // Remove the box after 1 second.
+          setTimeout(() => { box.element.remove(); }, 1000);
+          gameState.score++;
+          scoreElement.textContent = "Score: " + gameState.score;
+        }
+      });
+    });
+    
+    // --- Manual Skeleton Drawing ---
+    function drawSkeleton(landmarks) {
+      canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+      if (!landmarks) return;
+      const width = canvasElement.width;
+      const scaledLandmarks = landmarks.map(lm => ({
+        x: (1 - lm.x) * width,
+        y: lm.y * canvasElement.height
+      }));
+      
+      let connections = null;
+      if (typeof Pose !== 'undefined' && Pose.POSE_CONNECTIONS) {
+        connections = Pose.POSE_CONNECTIONS;
+      } else if (typeof mpPose !== 'undefined' && mpPose.POSE_CONNECTIONS) {
+        connections = mpPose.POSE_CONNECTIONS;
+      } else {
+        connections = FALLBACK_CONNECTIONS;
+      }
+      
+      connections.forEach(conn => {
+        const [start, end] = conn;
+        if (scaledLandmarks[start] && scaledLandmarks[end]) {
+          const p1 = scaledLandmarks[start];
+          const p2 = scaledLandmarks[end];
+          canvasCtx.beginPath();
+          canvasCtx.moveTo(p1.x, p1.y);
+          canvasCtx.lineTo(p2.x, p2.y);
+          canvasCtx.strokeStyle = '#00FF00';
+          canvasCtx.lineWidth = 2;
+          canvasCtx.stroke();
+        }
+      });
+      
+      scaledLandmarks.forEach(p => {
+        canvasCtx.beginPath();
+        canvasCtx.arc(p.x, p.y, 4, 0, 2 * Math.PI);
+        canvasCtx.fillStyle = 'red';
+        canvasCtx.fill();
+      });
+    }
+    
+    // --- Camera Setup ---
+    let cameraInstance;
+    function startCameraWithDevice(deviceId) {
+      if (cameraInstance) {
+        cameraInstance.stop();
+      }
+      cameraInstance = new Camera(videoElement, {
+        onFrame: async () => {
+          await pose.send({ image: videoElement });
+        },
+        width: 640,
+        height: 480,
+        video: deviceId ? { deviceId: { exact: deviceId } } : undefined
+      });
+      cameraInstance.start();
+    }
+    
+    async function populateCameraOptions() {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        cameraSelect.innerHTML = '';
+        videoDevices.forEach(device => {
+          const option = document.createElement('option');
+          option.value = device.deviceId;
+          option.text = device.label || `Camera ${cameraSelect.length + 1}`;
+          cameraSelect.appendChild(option);
+        });
+        console.log("Video devices:", videoDevices);
+      } catch (error) {
+        console.error("Error enumerating devices:", error);
+      }
+    }
+    
+    cameraSelect.addEventListener('change', (event) => {
+      const deviceId = event.target.value;
+      startCameraWithDevice(deviceId);
+    });
+    
+    // --- Create Random Game Box ---
+    function createRandomBox() {
+      const size = 60;
+      const maxX = container.clientWidth - size;
+      const maxY = container.clientHeight - size;
+      const x = Math.random() * maxX + size / 2;
+      const y = Math.random() * maxY + size / 2;
+      
+      const boxElement = document.createElement('div');
+      boxElement.className = 'game-box';
+      boxElement.style.width = size + 'px';
+      boxElement.style.height = size + 'px';
+      boxElement.style.left = (x - size / 2) + 'px';
+      boxElement.style.top = (y - size / 2) + 'px';
+      boxElement.textContent = "+1";
+      container.appendChild(boxElement);
+      
+      return { element: boxElement, x, y, size, hit: false };
+    }
+    
+    // --- Audio Analysis Variables & Functions ---
+    let audioContext, analyser, dataArray, audioSource;
+    let audioCooldown = false;
+    
+    function stopMicrophone() {
+      if (micStream) {
+        micStream.getTracks().forEach(track => track.stop());
+        micStream = null;
+      }
+    }
+    
+    function startMicrophoneAnalysis() {
+      stopMicrophone();
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+          micStream = stream;
+          audioContext = new AudioContext();
+          audioSource = audioContext.createMediaStreamSource(stream);
+          analyser = audioContext.createAnalyser();
+          analyser.fftSize = 256;
+          const bufferLength = analyser.frequencyBinCount;
+          dataArray = new Uint8Array(bufferLength);
+          audioSource.connect(analyser);
+          analyzeAudio();
+        })
+        .catch(err => console.error('Error accessing microphone:', err));
+    }
+    
+    function startAudioFileAnalysis(file) {
+      stopMicrophone();
+      const fileURL = URL.createObjectURL(file);
+      audioElement.src = fileURL;
+      audioElement.load();
+      // Do not auto-play; user controls via play/pause button.
+      audioContext = new AudioContext();
+      audioSource = audioContext.createMediaElementSource(audioElement);
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      const bufferLength = analyser.frequencyBinCount;
+      dataArray = new Uint8Array(bufferLength);
+      audioSource.connect(analyser);
+      analyser.connect(audioContext.destination);
+      analyzeAudio();
+    }
+    
+    function startComputerAudioAnalysis() {
+      stopMicrophone();
+      navigator.mediaDevices.getDisplayMedia({ video: false, audio: true })
+        .then(stream => {
+          audioContext = new AudioContext();
+          audioSource = audioContext.createMediaStreamSource(stream);
+          analyser = audioContext.createAnalyser();
+          analyser.fftSize = 256;
+          const bufferLength = analyser.frequencyBinCount;
+          dataArray = new Uint8Array(bufferLength);
+          audioSource.connect(analyser);
+          analyzeAudio();
+        })
+        .catch(err => console.error('Error accessing computer audio:', err));
+    }
+    
+    function analyzeAudio() {
+      requestAnimationFrame(analyzeAudio);
+      if (!analyser) return;
+      analyser.getByteTimeDomainData(dataArray);
+      let sum = 0;
+      for (let i = 0; i < dataArray.length; i++) {
+        let sample = dataArray[i] - 128;
+        sum += Math.abs(sample);
+      }
+      let avg = sum / dataArray.length;
+      // For file mode, only spawn boxes if the audio file is playing.
+      if (audioMode === 'file' && audioElement.paused) return;
+      if (avg > 15 && !audioCooldown) {
+        const box = createRandomBox();
+        gameState.boxes.push(box);
+        audioCooldown = true;
+        setTimeout(() => { audioCooldown = false; }, 500);
+      }
+    }
+    
+    function startAudioAnalysis() {
+      if (audioMode === 'mic') {
+        startMicrophoneAnalysis();
+        audioPlayPauseButton.style.display = 'none';
+      } else if (audioMode === 'file') {
+        if (audioFileInput.files.length > 0) {
+          startAudioFileAnalysis(audioFileInput.files[0]);
+          audioPlayPauseButton.style.display = 'block';
+        } else {
+          console.warn("No audio file selected.");
+          audioPlayPauseButton.style.display = 'none';
+        }
+      } else if (audioMode === 'computer') {
+        startComputerAudioAnalysis();
+        audioPlayPauseButton.style.display = 'none';
+      }
+    }
+    
+    // --- Settings Modal Functionality ---
+    settingsButton.addEventListener('click', () => {
+      settingsModal.style.display = 'block';
+    });
+    closeSettingsButton.addEventListener('click', () => {
+      settingsModal.style.display = 'none';
+      audioMode = audioSourceSelect.value;
+    });
+    audioSourceSelect.addEventListener('change', (event) => {
+      if (event.target.value === 'file') {
+        audioFileContainer.style.display = 'block';
+      } else {
+        audioFileContainer.style.display = 'none';
+      }
+    });
+    
+    // Play/Pause button for audio file (outside modal)
+    audioPlayPauseButton.addEventListener('click', () => {
+      if (audioElement.paused) {
+        audioElement.play().then(() => {
+          audioPlayPauseButton.textContent = 'Pause Audio';
+        }).catch(err => console.error('Error playing audio file:', err));
+      } else {
+        audioElement.pause();
+        audioPlayPauseButton.textContent = 'Play Audio';
+      }
+    });
+    
+    // --- Start Game ---
+    function startGame() {
+      gameState.score = 0;
+      scoreElement.textContent = "Score: 0";
+      gameState.boxes.forEach(box => box.element.remove());
+      gameState.boxes = [];
+      for (let i = 0; i < 5; i++) {
+        const box = createRandomBox();
+        gameState.boxes.push(box);
+      }
+      gameState.isPlaying = true;
+      startAudioAnalysis();
+    }
+    
+    startButton.addEventListener('click', () => {
+      startGame();
+      startButton.style.display = 'none';
+    });
+    
+    // --- Initialize Camera Options & Start Camera ---
+    window.addEventListener('DOMContentLoaded', async () => {
+      await populateCameraOptions();
+      const firstDeviceId = cameraSelect.value;
+      startCameraWithDevice(firstDeviceId);
+    });
+    
+    /* Note on Phone Audio:
+       Some phone cameras or devices accessed via phone link may not appear as standard videoinput devices.
+       Also, capturing "computer audio" depends on browser support for getDisplayMedia with audio.
+    */
+  </script>
+</body>
+</html>
